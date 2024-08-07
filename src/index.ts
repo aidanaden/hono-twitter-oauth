@@ -39,6 +39,10 @@ type EnvVars = {
 
 const app = new Hono();
 
+app.get("/health", (c) => {
+  return c.json({ status: 200, message: "im hella healthy!" }, 200);
+});
+
 app.get("/api/signin", async (c) => {
   // NAME is the value written in `wrangler.toml` on Cloudflare
   const { TWITTER_APP_KEY, TWITTER_APP_SECRET, COOKIE_SECRET } =
