@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { env } from "hono/adapter";
 import { deleteCookie, getSignedCookie, setSignedCookie } from "hono/cookie";
 import { CookieOptions } from "hono/utils/cookie";
 
@@ -14,16 +13,21 @@ const COOKIE_KEYS = {
   ACCESS_TOKEN: "access_token",
   ACCESS_SECRET: "access_secret",
 };
-const SECURE_COOKIE_OPTIONS: CookieOptions = {
-  path: "/",
-  secure: false,
-  // Omit if localhost
-  // domain: "localhost",
-  httpOnly: false,
-  maxAge: 1000,
-  expires: new Date(Date.UTC(2024, 11, 24, 10, 30, 59, 900)),
-  sameSite: "Lax",
-};
+
+function getSecureCookieOptions(rawUrl: string): CookieOptions {
+  const domain = new URL(rawUrl).host;
+  const isLocalHost = domain.includes("localhost");
+  return {
+    path: "/",
+    secure: isLocalHost ? false : true,
+    // Omit domain if localhost
+    ...(isLocalHost ? {} : { domain }),
+    httpOnly: isLocalHost ? false : true,
+    maxAge: 1000,
+    expires: new Date(Date.UTC(2024, 11, 24, 10, 30, 59, 900)),
+    sameSite: isLocalHost ? "Lax" : "Lax",
+  };
+}
 
 function getCallbackUrl(rawUrl: string) {
   const url = new URL(rawUrl);
@@ -37,16 +41,16 @@ type EnvVars = {
   COOKIE_SECRET: string;
 };
 
-const app = new Hono();
+const app = new Hono<{ Bindings: EnvVars }>();
 
 app.get("/health", (c) => {
   return c.json({ status: 200, message: "im hella healthy!" }, 200);
 });
 
 app.get("/api/signin", async (c) => {
-  // NAME is the value written in `wrangler.toml` on Cloudflare
-  const { TWITTER_APP_KEY, TWITTER_APP_SECRET, COOKIE_SECRET } =
-    env<EnvVars>(c);
+  const TWITTER_APP_KEY = c.env.TWITTER_APP_KEY;
+  const TWITTER_APP_SECRET = c.env.TWITTER_APP_SECRET;
+  const COOKIE_SECRET = c.env.COOKIE_SECRET;
 
   const { oauth_token_secret, url } = await generateOAuth1RedirectUrl(
     {
@@ -63,7 +67,7 @@ app.get("/api/signin", async (c) => {
     oauth_token_secret,
     COOKIE_SECRET,
     {
-      ...SECURE_COOKIE_OPTIONS,
+      ...getSecureCookieOptions(c.req.url),
       expires: new Date(Date.UTC(2024, 11, 24, 10, 30, 59, 900)),
     },
   );
@@ -72,11 +76,11 @@ app.get("/api/signin", async (c) => {
 
 app.get("/api/signout", async (c) => {
   deleteCookie(c, COOKIE_KEYS.ACCESS_TOKEN, {
-    ...SECURE_COOKIE_OPTIONS,
+    ...getSecureCookieOptions(c.req.url),
     expires: new Date(Date.UTC(2024, 11, 24, 10, 30, 59, 900)),
   });
   deleteCookie(c, COOKIE_KEYS.ACCESS_SECRET, {
-    ...SECURE_COOKIE_OPTIONS,
+    ...getSecureCookieOptions(c.req.url),
     expires: new Date(Date.UTC(2024, 11, 24, 10, 30, 59, 900)),
   });
   return c.json({ status: 200 }, 200);
@@ -95,8 +99,9 @@ app.get("/api/auth/callback/twitter", async (c) => {
     });
   }
 
-  const { TWITTER_APP_KEY, TWITTER_APP_SECRET, COOKIE_SECRET } =
-    env<EnvVars>(c);
+  const TWITTER_APP_KEY = c.env.TWITTER_APP_KEY;
+  const TWITTER_APP_SECRET = c.env.TWITTER_APP_SECRET;
+  const COOKIE_SECRET = c.env.COOKIE_SECRET;
 
   // Get the saved oauth_token_secret from session
   const oauthTokenSecret = await getSignedCookie(
@@ -114,13 +119,21 @@ app.get("/api/auth/callback/twitter", async (c) => {
 
   // // Obtain the persistent tokens
   const oauthResult = await generateOAuth1AccessTokens({
-    oauthToken,
+    oauthTokens: {
+      key: oauthToken,
+      secret: oauthTokenSecret,
+    },
     oauthVerifier,
     appConsumerTokens: {
       key: TWITTER_APP_KEY,
       secret: TWITTER_APP_SECRET,
     },
+    // oauthTokens: {
+    //   key: oauthToken,
+    //   secret: oauthTokenSecret,
+    // },
   });
+  console.log({ oauthToken, oauthTokenSecret, oauthResult });
 
   // Set perm access token for verification
   await setSignedCookie(
@@ -129,7 +142,7 @@ app.get("/api/auth/callback/twitter", async (c) => {
     oauthResult.oauth_token,
     COOKIE_SECRET,
     {
-      ...SECURE_COOKIE_OPTIONS,
+      ...getSecureCookieOptions(c.req.url),
       expires: new Date(Date.UTC(2024, 11, 24, 10, 30, 59, 900)),
     },
   );
@@ -140,7 +153,7 @@ app.get("/api/auth/callback/twitter", async (c) => {
     oauthResult.oauth_token_secret,
     COOKIE_SECRET,
     {
-      ...SECURE_COOKIE_OPTIONS,
+      ...getSecureCookieOptions(c.req.url),
       expires: new Date(Date.UTC(2024, 11, 24, 10, 30, 59, 900)),
     },
   );
@@ -148,8 +161,9 @@ app.get("/api/auth/callback/twitter", async (c) => {
 });
 
 app.get("/api/me", async (c) => {
-  const { TWITTER_APP_KEY, TWITTER_APP_SECRET, COOKIE_SECRET } =
-    env<EnvVars>(c);
+  const TWITTER_APP_KEY = c.env.TWITTER_APP_KEY;
+  const TWITTER_APP_SECRET = c.env.TWITTER_APP_SECRET;
+  const COOKIE_SECRET = c.env.COOKIE_SECRET;
 
   const accessToken = await getSignedCookie(
     c,

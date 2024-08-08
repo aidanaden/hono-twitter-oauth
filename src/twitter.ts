@@ -85,28 +85,30 @@ export async function generateOAuth1RedirectUrl(
 }
 
 type GenerateOAuth1AccessTokensParams = {
-  oauthToken: string;
   oauthVerifier: string;
+  oauthTokens: OAuth1Tokens;
   appConsumerTokens: OAuth1Tokens;
 };
 
 export async function generateOAuth1AccessTokens({
-  oauthToken,
   oauthVerifier,
+  oauthTokens,
   appConsumerTokens,
 }: GenerateOAuth1AccessTokensParams) {
   const args = getFormattedRequestArgs({
     url: "https://api.twitter.com/oauth/access_token",
     method: "POST",
     body: {
-      oauth_token: oauthToken,
+      oauth_token: oauthTokens.key,
+      oauth_token_secret: oauthTokens.secret,
       oauth_verifier: oauthVerifier,
     },
     appConsumerTokens,
+    accessTokens: {},
     // No permanent access tokens available since
     // we are generating them with temp tokens
     // (oauth_token + oauth_verifier received from callback)
-    accessTokens: {},
+    // accessTokens: oauthTokens,
   });
   const res = await fetch(args.url, {
     method: args.method,
