@@ -48,6 +48,7 @@ type GenerateOAuth1RedirectUrlParams = {
 export async function generateOAuth1RedirectUrl(
   { callbackUrl, appConsumerTokens }: GenerateOAuth1RedirectUrlParams,
   { authAccessType, linkMode }: Partial<RequestTokenArgs> = {},
+  realIp: string,
 ) {
   const args = getFormattedRequestArgs({
     url: "https://api.twitter.com/oauth/request_token",
@@ -64,7 +65,10 @@ export async function generateOAuth1RedirectUrl(
   // RequestParamHelpers.setBodyLengthHeader(args, args.body);
   const res = await fetch(args.url, {
     method: args.method,
-    headers: args.headers,
+    headers: {
+      ...args.headers,
+      "x-real-ip": realIp,
+    },
     body: args.body,
   });
   // Response is a query string (why tf is it not json???) of `RequestTokenResult`
@@ -88,12 +92,14 @@ type GenerateOAuth1AccessTokensParams = {
   oauthVerifier: string;
   oauthTokens: OAuth1Tokens;
   appConsumerTokens: OAuth1Tokens;
+  realIp: string;
 };
 
 export async function generateOAuth1AccessTokens({
   oauthVerifier,
   oauthTokens,
   appConsumerTokens,
+  realIp,
 }: GenerateOAuth1AccessTokensParams) {
   const args = getFormattedRequestArgs({
     url: "https://api.twitter.com/oauth/access_token",
@@ -112,7 +118,10 @@ export async function generateOAuth1AccessTokens({
   });
   const res = await fetch(args.url, {
     method: args.method,
-    headers: args.headers,
+    headers: {
+      ...args.headers,
+      "x-real-ip": realIp,
+    },
     body: args.body,
   });
   const body = await res.text();

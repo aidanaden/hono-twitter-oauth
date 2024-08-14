@@ -58,6 +58,7 @@ app.get("/api/signin", async (c) => {
       appConsumerTokens: { key: TWITTER_APP_KEY, secret: TWITTER_APP_SECRET },
     },
     { linkMode: "authorize" },
+    c.req.header("cf-connecting-ip") ?? "",
   );
 
   // Signed cookies
@@ -128,6 +129,7 @@ app.get("/api/auth/callback/twitter", async (c) => {
       key: TWITTER_APP_KEY,
       secret: TWITTER_APP_SECRET,
     },
+    realIp: c.req.header("cf-connecting-ip") ?? "",
     // oauthTokens: {
     //   key: oauthToken,
     //   secret: oauthTokenSecret,
